@@ -26,38 +26,31 @@ namespace News_Parser
                                 "PRINT 'db not exist' " +
                                 "ELSE " +
                                 "PRINT 'db exist';", con);
-
             sqlCom.ExecuteNonQuery();
             sqlCom = new("IF OBJECT_ID(N'NewsItems','U') IS NULL " +
                 "PRINT 'table not exist' " +
                 "ELSE " +
                 "PRINT 'table exist';", con);
             sqlCom.ExecuteNonQuery();
-            
-            
             while (true)
             {
                 Console.WriteLine(menu);
                 switch (Console.ReadLine())
                 {
                     case "1":
-                        {
-                            GoParse();
-                        }
-                        break;
+                        GoParse(); break;
                     case "2":
+                        if (CheckConnection(con, true))
                         {
-                            if (CheckConnection(con, true))
-                            {
-                                SqlCommand sqlCommand = new("DELETE FROM NewsItems;", con);
-                                int CountDelete = sqlCommand.ExecuteNonQuery();
-                                if(CountDelete > 0)
-                                    Print($"Удалено элементов: {CountDelete}", ConsoleColor.Green);
-                                else
-                                    Print($"Таблица пуста.", ConsoleColor.Red);
-                            }
-                        }
-                        break;
+                            SqlCommand sqlCommand = new("SELECT COUNT(*) FROM NewsItems;", con);
+                            int CountDelete = (int) sqlCommand.ExecuteScalar();
+                            sqlCommand = new("TRUNCATE TABLE NewsItems;", con);
+                            sqlCommand.ExecuteNonQuery();
+                            if (CountDelete > 0)
+                                Print($"Удалено элементов: {CountDelete}", ConsoleColor.Green);
+                            else
+                                Print($"Таблица пуста.", ConsoleColor.Red);
+                        } break;
                     case "0": return;
                     default:
                         Print("Неизвестная команда.", ConsoleColor.Red);
