@@ -11,14 +11,23 @@ namespace News_Parser
     public class Program
     {
         static ApplicationContext db = new();
-        public static void Main(string[] args)
-        {
-            string menu = "================================\n" +
+        static readonly string[] errorsArr = {
+                "Это точно число?",
+                "Всё фигня Миша, давай по новой!",
+                "Надо попробовать ещё разок.",
+                "Буквы вводить нельзя.",
+                "Нужно просто число."
+            };
+        static readonly string menu = "================================\n" +
                         "1 - Парсинг\n" +
                         "2 - Вывод элементов из БД\n" +
-                        "3 - Очиста таблицы в БД\n" +
+                        "3 - Удаление статьи из БД\n" +
+                        "4 - Очистка таблицы в БД\n" +
                         "0 - Выход\n" +
                         "================================";
+        public static void Main(string[] args)
+        {
+            
             while (true)
             {
                 Console.WriteLine(menu);
@@ -39,6 +48,38 @@ namespace News_Parser
                             Print($"Таблица пуста.", ConsoleColor.Red);
                         break;
                     case "3":
+                        if (db.NewsItems.Any())
+                        {
+                            foreach (var item in db.NewsItems)
+                            {
+                                Print($"[{item.Id}] ", ConsoleColor.Green, false);
+                                Print(item.Title, ConsoleColor.Yellow);
+                            }
+                            Print("Введите индекс удаляемого элемента: ", ConsoleColor.White, false);
+                            try
+                            {
+                                int IndexToDelete = int.Parse(Console.ReadLine());
+                                if (db.NewsItems.Where(a => a.Id == IndexToDelete).Count() != 0)
+                                {
+                                    var article = db.NewsItems.Where(a => a.Id == IndexToDelete).FirstOrDefault();
+                                    Print($"Удален элемент {article.Title}.", ConsoleColor.Green);
+                                    db.NewsItems.Remove(article);
+                                    db.SaveChanges();
+                                }
+                                else
+                                {
+                                    Print($"Введенный индекс не найден.", ConsoleColor.Red);
+                                }
+                            }
+                            catch
+                            {
+                                Print(errorsArr[new Random().Next(0, errorsArr.Length - 1)], ConsoleColor.Red);
+                            }
+                        }
+                        else
+                            Print($"Таблица пуста.", ConsoleColor.Red);
+                        break;
+                    case "4":
                         if (db.NewsItems.Any())
                         {
                             int CountDelete = db.NewsItems.Count();
@@ -64,7 +105,7 @@ namespace News_Parser
         /// <param name="line">Строка для вывода.</param>
         /// <param name="color">Цвет строки.</param>
         /// <param name="lineBreak">Перенос строки. По умолчанию включен.</param>
-        public static void Print(string line, ConsoleColor color, bool lineBreak = true)
+        public static void Print(string line, ConsoleColor color = ConsoleColor.White, bool lineBreak = true)
         {
             Console.ForegroundColor = color;
             if (lineBreak)
@@ -78,13 +119,6 @@ namespace News_Parser
         /// </summary>
         public static void GoParse()
         {
-            string[] errorsArr = { 
-                "Это точно число?", 
-                "Всё фигня Миша, давай по новой!",
-                "Надо попробовать ещё разок.",
-                "Буквы вводить нельзя.",
-                "Нужно просто число."
-            };
             int countCard;
             while (true)
             {
@@ -95,9 +129,7 @@ namespace News_Parser
                     if (countCard > 0)
                         break;
                     else Print("Число должно быть больше нуля.", ConsoleColor.Red);
-                }
-                catch
-                {
+                } catch {
                     Print(errorsArr[new Random().Next(0, errorsArr.Length)], ConsoleColor.Red);
                 }
             }
