@@ -1,37 +1,24 @@
 ﻿using HtmlAgilityPack;
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
 using System.Net;
-using System.Threading;
-using System.Xml.XPath;
+using News_Parser.Classes;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace News_Parser
 {
-    internal class Program
+    public class Program
     {
-        static SqlConnection con = Helper.ConnectToDB(true);
-        static void Main(string[] args)
+        static ApplicationContext db = new();
+        public static void Main(string[] args)
         {
             string menu = "================================\n" +
                         "1 - Парсинг\n" +
-                        "2 - Очиста таблицы в БД\n" +
+                        "2 - Вывод элементов из БД\n" +
+                        "3 - Очиста таблицы в БД\n" +
                         "0 - Выход\n" +
                         "================================";
-            Print("Подключение к SQLEXPRESS...", ConsoleColor.Yellow);
-            CheckConnection(con);
-            con.InfoMessage += Con_InfoMessage;
-            SqlCommand sqlCom = new("IF db_id('NewsDB') IS NULL " +
-                                "PRINT 'db not exist' " +
-                                "ELSE " +
-                                "PRINT 'db exist';", con);
-            sqlCom.ExecuteNonQuery();
-            sqlCom = new("IF OBJECT_ID(N'NewsItems','U') IS NULL " +
-                "PRINT 'table not exist' " +
-                "ELSE " +
-                "PRINT 'table exist';", con);
-            sqlCom.ExecuteNonQuery();
             while (true)
             {
                 Console.WriteLine(menu);
@@ -40,62 +27,34 @@ namespace News_Parser
                     case "1":
                         GoParse(); break;
                     case "2":
-                        if (CheckConnection(con, true))
+                        if (db.NewsItems.Any())
                         {
-                            SqlCommand sqlCommand = new("SELECT COUNT(*) FROM NewsItems;", con);
-                            int CountDelete = (int) sqlCommand.ExecuteScalar();
-                            sqlCommand = new("TRUNCATE TABLE NewsItems;", con);
-                            sqlCommand.ExecuteNonQuery();
+                            Print($"Найдено элементов в БД: {db.NewsItems.Count()}", ConsoleColor.Cyan);
+                            foreach (var item in db.NewsItems)
+                            {
+                                Print(item.ToString(), ConsoleColor.Yellow);
+                            }
+                        }
+                        else
+                            Print($"Таблица пуста.", ConsoleColor.Red);
+                        break;
+                    case "3":
+                        if (db.NewsItems.Any())
+                        {
+                            int CountDelete = db.NewsItems.Count();
                             if (CountDelete > 0)
+                            {
+                                db.Database.ExecuteSqlRaw("TRUNCATE TABLE NewsItems;");
                                 Print($"Удалено элементов: {CountDelete}", ConsoleColor.Green);
-                            else
-                                Print($"Таблица пуста.", ConsoleColor.Red);
-                        } break;
+                            }
+                        }else
+                            Print($"Таблица пуста.", ConsoleColor.Red);
+                        break;
                     case "0": return;
                     default:
                         Print("Неизвестная команда.", ConsoleColor.Red);
                         break;
                 }
-            }
-        }
-        /// <summary>
-        /// Обработчик InfoMessage для SqlConnection
-        /// </summary>
-        private static void Con_InfoMessage(object sender, SqlInfoMessageEventArgs e)
-        {
-            switch (e.Message)
-            {
-                case "db not exist":
-                    {
-                        SqlCommand sqlComm = new("CREATE DATABASE NewsDB;", con);
-                        sqlComm.ExecuteNonQuery();
-                        con.Close();
-                        con = Helper.ConnectToDB();
-                        con.InfoMessage += Con_InfoMessage;
-                        Print("База данных не существует, но я её уже создал.", ConsoleColor.Red);
-                    }
-                    break;
-                case "db exist":
-                    {
-                        Print("База уже существует, сейчас подключусь к ней.", ConsoleColor.Green);
-                        con.Close();
-                        con = Helper.ConnectToDB();
-                        con.InfoMessage += Con_InfoMessage;
-                    }
-                    break;
-                case "table not exist":
-                    {
-                        SqlCommand sql = new("CREATE TABLE NewsItems (" +
-                            "[id][int] IDENTITY(1, 1) NOT NULL, " +
-                            "[Title][varchar](200) NOT NULL, " +
-                            "[Link][varchar](max) NOT NULL, " +
-                            "[Text][text] NOT NULL, " +
-                            "[Date][datetime] NOT NULL, " +
-                            "PRIMARY KEY(id))", con);
-                        sql.ExecuteNonQuery();
-                        Print("Таблица не существует, но она уже создана.", ConsoleColor.Red);
-                    }break;
-                case "table exist": Print("Таблица существует, можно приступать.", ConsoleColor.Green);break;
             }
         }
 
@@ -113,27 +72,6 @@ namespace News_Parser
             else
                 Console.Write(line);
             Console.ForegroundColor = ConsoleColor.White;
-        }
-        /// <summary>
-        /// Проверка соединения с базой данных.
-        /// </summary>
-        /// <param name="con">SqlConnection, представляющее соединение с Sql Server.</param>
-        /// <param name="silence">Флаг отвечающий за вывод информации о подключении к терминал.</param>
-        /// <returns>Возвращает флаг состояния подключения к БД.</returns>
-        public static bool CheckConnection(SqlConnection con, bool silence = false)
-        {
-            if (con.State != ConnectionState.Open)
-            {
-                if (!silence)
-                    Print("Произошла ошибка подключения к базе данных.", ConsoleColor.Red);
-                return false;
-            }
-            else
-            {
-                if (!silence)
-                    Print("Соединение с БД установлено.", ConsoleColor.Green);
-                return true;
-            }
         }
         /// <summary>
         /// Функция парсинга новостной страницы.
@@ -177,6 +115,7 @@ namespace News_Parser
             {
                 htmlDoc.LoadHtml(parser.Response);
                 var articles = htmlDoc.DocumentNode.SelectNodes($"(//div[contains(@class,'zmainCard_item')])[position() < {countCard + 1}]");
+                Print($"Найдено статей на странице: {articles.Count}", ConsoleColor.Yellow);
                 List<Article> ArticlesList = new();
                 foreach (var article in articles)
                 {
@@ -211,22 +150,12 @@ namespace News_Parser
                 }
                 if(ArticlesList.Count > 0)
                 {
-                    if (CheckConnection(con))
+                    foreach (var article in ArticlesList)
                     {
-                        foreach (var article in ArticlesList)
-                        {
-                            string command = "INSERT INTO NewsItems (Title,Link,Text,Date) VALUES (@Title,@Link,@Text,@Date)";
-                            using (SqlCommand queryCommand = new(command, con))
-                            {
-                                queryCommand.Parameters.Add("@Title", SqlDbType.VarChar, 200).Value = article.Title;
-                                queryCommand.Parameters.Add("@Link", SqlDbType.VarChar, int.MaxValue).Value = article.Link;
-                                queryCommand.Parameters.Add("@Text", SqlDbType.Text).Value = article.Text;
-                                queryCommand.Parameters.Add("@Date", SqlDbType.DateTime).Value = article.Date;
-                                queryCommand.ExecuteNonQuery();
-                            }
-                            Console.WriteLine(article.ToString());
-                        }
+                        db.NewsItems.Add(article);
+                        Console.WriteLine(article.ToString());
                     }
+                    db.SaveChanges();
                 } else {
                     Print($"Статьи на странице {parser.Referer} не найдены", ConsoleColor.Red);
                 }

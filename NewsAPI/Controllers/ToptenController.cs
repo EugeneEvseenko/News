@@ -36,9 +36,7 @@ namespace NewsAPI.Controllers
                 .OrderByDescending(o => o.Count())
                 .Take(10)
                 .Select(ss => new { item = ss.Distinct().ToList()[0], count = ss.Count() });
-                return new OkObjectResult(
-                        result
-                    );
+                return new OkObjectResult(result);
             }
             else
             {
