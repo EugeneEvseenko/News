@@ -15,6 +15,12 @@ namespace News_Parser.Classes
         {
             Database.EnsureCreated();
         }
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            builder.Entity<Article>()
+                .HasIndex(u => u.Title)
+                .IsUnique();
+        }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {

@@ -29,11 +29,11 @@ namespace News_Parser
                     case "2":
                         if (db.NewsItems.Any())
                         {
-                            Print($"Найдено элементов в БД: {db.NewsItems.Count()}", ConsoleColor.Cyan);
                             foreach (var item in db.NewsItems)
                             {
                                 Print(item.ToString(), ConsoleColor.Yellow);
                             }
+                            Print($"Найдено элементов в БД: {db.NewsItems.Count()}", ConsoleColor.Cyan);
                         }
                         else
                             Print($"Таблица пуста.", ConsoleColor.Red);
@@ -115,8 +115,13 @@ namespace News_Parser
             {
                 htmlDoc.LoadHtml(parser.Response);
                 var articles = htmlDoc.DocumentNode.SelectNodes($"(//div[contains(@class,'zmainCard_item')])[position() < {countCard + 1}]");
-                Print($"Найдено статей на странице: {articles.Count}", ConsoleColor.Yellow);
-                List<Article> ArticlesList = new();
+                if (articles.Count == 0)
+                {
+                    Print($"Статьи на странице {parser.Referer} не найдены", ConsoleColor.Red);
+                    return;
+                }
+                Print($"Выбрано статей на странице: {articles.Count}", ConsoleColor.Cyan);
+                int counter = 0;
                 foreach (var article in articles)
                 {
                     try
@@ -134,13 +139,23 @@ namespace News_Parser
                             string text = fullArticle.SelectSingleNode(".//div[@class='description']").InnerText.Trim();
                             text += "\n" + fullArticle.SelectSingleNode(".//div[@class='content']").InnerText.Trim();
                             if (text.Contains("Новость по теме")) text = text.Remove(text.LastIndexOf("Новость по теме"));
-                            ArticlesList.Add(new Article
+                            var NewArticle = new Article
                             {
                                 Title = article.SelectSingleNode(".//div[contains(@class,'title')]").InnerText.Trim(),
                                 Link = article.SelectSingleNode(".//a").Attributes["href"].Value,
                                 Date = DateTime.Parse(date),
                                 Text = text
-                            });
+                            };
+                            if (db.NewsItems.Where(a => a.Title.Equals(NewArticle.Title)).Count() == 0)
+                            {
+                                Print("[Новый] ", ConsoleColor.Green, false);
+                                db.NewsItems.Add(NewArticle);
+                                counter++;
+                                db.SaveChanges();
+                            }
+                            else
+                                Print("[Существует] ", ConsoleColor.Red, false);
+                            Print(NewArticle.ToString(), ConsoleColor.Yellow);
                         }
                     }
                     catch (Exception ex)
@@ -148,17 +163,7 @@ namespace News_Parser
                         Print(ex.Message, ConsoleColor.Red);
                     }
                 }
-                if(ArticlesList.Count > 0)
-                {
-                    foreach (var article in ArticlesList)
-                    {
-                        db.NewsItems.Add(article);
-                        Console.WriteLine(article.ToString());
-                    }
-                    db.SaveChanges();
-                } else {
-                    Print($"Статьи на странице {parser.Referer} не найдены", ConsoleColor.Red);
-                }
+                Print($"Добавлено статей: {counter}", ConsoleColor.Cyan);
             }
         }
     }

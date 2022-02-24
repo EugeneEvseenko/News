@@ -21,7 +21,7 @@ namespace News_Parser
         public DateTime Date { get; set; }
         public override string ToString()
         {
-            return $"{Title} - {Date}\n[https://www.zakon.kz/{Link}]\n";
+            return $"{Title} - {Date}\n";
         }
     }
 }
