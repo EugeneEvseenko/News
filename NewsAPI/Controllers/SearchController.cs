@@ -19,7 +19,7 @@ namespace NewsAPI.Controllers
         {
             db = articlesContext;
         }
-        // GET: api/posts?from={}&to={}
+        // GET: api/search?text={}
         [HttpGet]
         public ActionResult<string> Get(string text)
         {
